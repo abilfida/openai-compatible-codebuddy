@@ -16,6 +16,7 @@ const completionCache = new LRUCache<ChatCompletionResponse>(
 // POST /v1/chat/completions
 chatRoutes.post('/v1/chat/completions', async (c) => {
   let body: ChatCompletionRequest;
+  const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
 
   try {
     body = await c.req.json<ChatCompletionRequest>();
@@ -41,7 +42,7 @@ chatRoutes.post('/v1/chat/completions', async (c) => {
 
   // ============ Streaming ============
   if (stream) {
-    const readable = chatCompletionStream({ model, messages, stream: true });
+    const readable = chatCompletionStream({ model, messages, stream: true }, requestApiKey);
     return new Response(readable, {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -75,7 +76,7 @@ chatRoutes.post('/v1/chat/completions', async (c) => {
     // Cache miss — call SDK
     try {
       console.log(`[cache] MISS for model=${model}`);
-      const result = await chatCompletion({ model, messages });
+      const result = await chatCompletion({ model, messages }, requestApiKey);
       completionCache.set(cacheKey, result);
       c.header('X-Cache', 'MISS');
       return c.json(result);
@@ -87,7 +88,7 @@ chatRoutes.post('/v1/chat/completions', async (c) => {
 
   // Cache disabled — direct call
   try {
-    const result = await chatCompletion({ model, messages });
+    const result = await chatCompletion({ model, messages }, requestApiKey);
     return c.json(result);
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Internal server error';
