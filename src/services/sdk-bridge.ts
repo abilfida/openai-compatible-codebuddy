@@ -245,7 +245,7 @@ let modelsFetchInFlight: Promise<ModelListResponse> | null = null;
  * Results are cached in memory for 5 minutes to avoid the expensive
  * subprocess startup on every request.
  */
-export async function getModels(): Promise<ModelListResponse> {
+export async function getModels(requestApiKey?: string): Promise<ModelListResponse> {
   // Return cached result if still valid
   if (modelsCache && Date.now() < modelsCache.expiresAt) {
     return modelsCache.data;
@@ -256,7 +256,7 @@ export async function getModels(): Promise<ModelListResponse> {
     return modelsFetchInFlight;
   }
 
-  modelsFetchInFlight = fetchModelsFromSDK();
+  modelsFetchInFlight = fetchModelsFromSDK(requestApiKey);
   try {
     const result = await modelsFetchInFlight;
     return result;
@@ -265,7 +265,7 @@ export async function getModels(): Promise<ModelListResponse> {
   }
 }
 
-async function fetchModelsFromSDK(): Promise<ModelListResponse> {
+async function fetchModelsFromSDK(requestApiKey?: string): Promise<ModelListResponse> {
   const abortController = new AbortController();
 
   const q = sdkQuery({
@@ -274,7 +274,7 @@ async function fetchModelsFromSDK(): Promise<ModelListResponse> {
       model: config.defaultModel,
       permissionMode: 'plan',
       maxTurns: 1,
-      env: buildEnv(),
+      env: buildEnv(requestApiKey),
       abortController,
     },
   });
