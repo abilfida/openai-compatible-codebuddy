@@ -13,11 +13,9 @@ import {
 } from './response-formatter.js';
 import type { ChatMessage, ChatCompletionResponse, ModelListResponse } from '../types/index.js';
 
-function buildEnv(): Record<string, string | undefined> {
+function buildEnv(requestApiKey?: string): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
-  if (config.codebuddy.apiKey) {
-    env.CODEBUDDY_API_KEY = config.codebuddy.apiKey;
-  }
+  env.CODEBUDDY_API_KEY = requestApiKey ?? config.codebuddy.apiKey;
   if (config.codebuddy.environment) {
     env.CODEBUDDY_INTERNET_ENVIRONMENT = config.codebuddy.environment;
   }
