@@ -28,7 +28,7 @@ function buildEnv(requestApiKey?: string): Record<string, string | undefined> {
 const DEFAULT_SYSTEM_PROMPT =
   'You are a helpful assistant. Respond to the user\'s message directly.';
 
-function buildOptions(model: string, systemPrompt?: string): Options {
+function buildOptions(model: string, systemPrompt?: string, requestApiKey?: string): Options {
   return {
     model,
     fallbackModel: config.fallbackModel,
@@ -40,7 +40,7 @@ function buildOptions(model: string, systemPrompt?: string): Options {
     allowedTools: [],
     // With no tools available, 1 turn is sufficient: user message → text reply.
     maxTurns: 1,
-    env: buildEnv(),
+    env: buildEnv(requestApiKey),
     // Always set systemPrompt to override the SDK's built-in CodeBuddy prompt.
     // When the caller provides one, use it; otherwise fall back to a neutral prompt.
     systemPrompt: systemPrompt ?? DEFAULT_SYSTEM_PROMPT,
