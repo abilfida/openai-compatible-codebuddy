@@ -179,6 +179,50 @@ async function testNotFound() {
   assert(res.status === 404, 'returns 404 for unknown endpoint');
 }
 
+async function testApiKeyHeaderFallback() {
+  console.log('\n▸ API key header fallback');
+
+  const testApiKey = process.env.TEST_CODEBUDDY_API_KEY || 'test-key-placeholder';
+  const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CodeBuddy-Api-Key': testApiKey,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-v3.1',
+      messages: [{ role: 'user', content: 'Say hi' }],
+    }),
+  });
+
+  assert(res.status !== 400, 'header is accepted (no 400 for X-CodeBuddy-Api-Key)');
+
+  if (res.status === 200) {
+    const body = await res.json() as { object: string };
+    assert(body.object === 'chat.completion', 'returns valid response with header key');
+  } else {
+    console.log('    ℹ Could not fully test (need valid TEST_CODEBUDDY_API_KEY)');
+  }
+}
+
+async function testApiKeyHeaderOnModelsEndpoint() {
+  console.log('\n▸ API key header on models endpoint');
+
+  const testApiKey = process.env.TEST_CODEBUDDY_API_KEY || 'test-key-placeholder';
+  const res = await fetch(`${BASE_URL}/v1/models`, {
+    headers: {
+      'X-CodeBuddy-Api-Key': testApiKey,
+    },
+  });
+
+  assert(res.status !== 400, 'models endpoint accepts X-CodeBuddy-Api-Key header');
+
+  if (res.status === 200) {
+    const body = await res.json() as { object: string; data: unknown[] };
+    assert(body.object === 'list', 'returns valid models list');
+  }
+}
+
 // ============ Run all tests ============
 
 console.log('\n🧪 Integration Tests\n');
@@ -197,6 +241,8 @@ try {
   await testNotFound();
   await testCacheHitConsistency();
   await testStreamingFormat();
+  await testApiKeyHeaderFallback();
+  await testApiKeyHeaderOnModelsEndpoint();
 } catch (error) {
   console.error('\n  ✗ Test error:', error);
   failed++;
