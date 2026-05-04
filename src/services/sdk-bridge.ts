@@ -95,11 +95,12 @@ function buildPrompt(
  * Collects all assistant text and returns a complete response.
  */
 export async function chatCompletion(
-  params: ChatCompletionParams
+  params: ChatCompletionParams,
+  requestApiKey?: string
 ): Promise<ChatCompletionResponse> {
   const { systemPrompt, prompt, contentBlocks } = await convertMessages(params.messages);
   const model = params.model || config.defaultModel;
-  const options = buildOptions(model, systemPrompt);
+  const options = buildOptions(model, systemPrompt, requestApiKey);
 
   const q = sdkQuery({ prompt: buildPrompt(prompt, contentBlocks), options });
   let fullText = '';
@@ -129,7 +130,8 @@ export async function chatCompletion(
  * Returns a ReadableStream of SSE-formatted data.
  */
 export function chatCompletionStream(
-  params: ChatCompletionParams
+  params: ChatCompletionParams,
+  requestApiKey?: string
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
@@ -139,7 +141,7 @@ export function chatCompletionStream(
         const { systemPrompt, prompt, contentBlocks } = await convertMessages(params.messages);
         const model = params.model || config.defaultModel;
         const options: Options = {
-          ...buildOptions(model, systemPrompt),
+          ...buildOptions(model, systemPrompt, requestApiKey),
           includePartialMessages: true,
         };
 
