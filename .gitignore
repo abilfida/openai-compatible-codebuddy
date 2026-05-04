@@ -33,3 +33,6 @@ tmp/
 
 # CodeBuddy
 .codebuddy/
+
+# Worktrees
+.worktrees/
