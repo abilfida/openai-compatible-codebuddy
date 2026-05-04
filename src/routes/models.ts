@@ -7,7 +7,8 @@ export const modelsRoutes = new Hono();
 // GET /v1/models — List available models
 modelsRoutes.get('/v1/models', async (c) => {
   try {
-    const modelList = await getModels();
+    const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
+    const modelList = await getModels(requestApiKey);
     return c.json(modelList);
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Failed to fetch models';
@@ -19,7 +20,8 @@ modelsRoutes.get('/v1/models', async (c) => {
 modelsRoutes.get('/v1/models/:model', async (c) => {
   const modelId = c.req.param('model');
   try {
-    const modelList = await getModels();
+    const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
+    const modelList = await getModels(requestApiKey);
     const found = modelList.data.find(m => m.id === modelId);
     if (!found) {
       return c.json(
