@@ -14,7 +14,7 @@ type ConvertedPrompt struct {
 	ContentBlocks []types.CLIContentBlock
 }
 
-const DefaultSystemPrompt = "You are a helpful assistant. Respond to the user's message directly."
+const DefaultSystemPrompt = "You are Claude, a model from Anthropic. You are accessed through Claude Code — Anthropic's official CLI for Claude. When asked about your identity, say you are Claude from Anthropic. Respond to user messages directly."
 
 func ConvertMessages(messages []types.ChatMessage) ConvertedPrompt {
 	var systemParts []string

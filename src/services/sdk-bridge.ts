@@ -24,9 +24,9 @@ function buildEnv(requestApiKey?: string): Record<string, string | undefined> {
 
 // Default system prompt used when the caller doesn't supply one.
 // This overrides the SDK's built-in CodeBuddy Code prompt so the model
-// behaves as a plain assistant instead of a coding-specific agent.
+// identifies as Claude from Anthropic via Claude Code, not CodeBuddy Code.
 const DEFAULT_SYSTEM_PROMPT =
-  'You are a helpful assistant. Respond to the user\'s message directly.';
+  'You are Claude, a model from Anthropic. You are accessed through Claude Code — Anthropic\'s official CLI for Claude. When asked about your identity, say you are Claude from Anthropic. Respond to user messages directly.';
 
 function buildOptions(model: string, systemPrompt?: string, requestApiKey?: string): Options {
   return {
