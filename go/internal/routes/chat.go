@@ -68,9 +68,8 @@ func handleNonStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatComplet
 		FallbackModel:  cfg.FallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
-		// AllowedTools: nil (empty) - TypeScript SDK only adds --allowedTools if non-empty
-		SystemPrompt: systemPrompt,
-		Env:          map[string]string{"CODEBUDDY_API_KEY": apiKey},
+		SystemPrompt:   systemPrompt,
+		Env:            map[string]string{"CODEBUDDY_API_KEY": apiKey},
 	}
 
 	cli, err := services.NewCLIProcess(opts)
@@ -106,6 +105,8 @@ func handleNonStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatComplet
 			if msg.Usage != nil {
 				usage = msg.Usage
 			}
+			// Stop reading after result - stream complete
+			break
 		}
 	}
 
@@ -133,7 +134,6 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 		FallbackModel:  cfg.FallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
-		// AllowedTools: nil (empty) - TypeScript SDK only adds --allowedTools if non-empty
 		SystemPrompt:   systemPrompt,
 		IncludePartial: true,
 		Env:            map[string]string{"CODEBUDDY_API_KEY": apiKey},
@@ -163,35 +163,44 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 		sentRole := false
 		actualModel := model
 
+		// Read messages until result (stream complete)
+	StreamLoop:
 		for msg := range cli.Messages() {
-			if msg.Type == "stream_event" && msg.Event != nil {
-				switch msg.Event.Type {
-				case "content_block_delta":
-					if msg.Event.Delta != nil {
-						chunk := services.FormatSSEChunk(
-							msg.Event.Delta.Text,
-							actualModel,
-							"",
-							!sentRole,
-						)
-						sentRole = true
-						fmt.Fprint(w, services.FormatSSE(chunk))
-						w.Flush()
-					}
-				case "message_start":
-					if msg.Event.Message != nil {
-						actualModel = msg.Event.Message.Model
+			switch msg.Type {
+			case "stream_event":
+				if msg.Event != nil {
+					switch msg.Event.Type {
+					case "content_block_delta":
+						if msg.Event.Delta != nil && msg.Event.Delta.Text != "" {
+							chunk := services.FormatSSEChunk(
+								msg.Event.Delta.Text,
+								actualModel,
+								"",
+								!sentRole,
+							)
+							sentRole = true
+							fmt.Fprint(w, services.FormatSSE(chunk))
+							w.Flush()
+						}
+					case "message_start":
+						if msg.Event.Message != nil {
+							actualModel = msg.Event.Message.Model
+						}
 					}
 				}
+			case "result":
+				// Stream complete - break out of loop
+				break StreamLoop
 			}
 		}
 
-		// Send stop chunk
+		// Send final stop chunk
 		stopChunk := services.FormatSSEChunk("", actualModel, "stop", false)
 		fmt.Fprint(w, services.FormatSSE(stopChunk))
 		fmt.Fprint(w, services.FormatSSEDone())
 		w.Flush()
 
+		// Close CLI process
 		cli.Close()
 	})
 
