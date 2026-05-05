@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { chatCompletion, chatCompletionStream } from '../services/sdk-bridge.js';
 import { formatError } from '../services/response-formatter.js';
 import { LRUCache } from '../services/cache.js';
+import { extractApiKey } from '../utils/auth.js';
 import type { ChatCompletionRequest, ChatCompletionResponse } from '../types/index.js';
 
 export const chatRoutes = new Hono();
@@ -16,7 +17,7 @@ const completionCache = new LRUCache<ChatCompletionResponse>(
 // POST /v1/chat/completions
 chatRoutes.post('/v1/chat/completions', async (c) => {
   let body: ChatCompletionRequest;
-  const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
+  const requestApiKey = extractApiKey(c);
 
   try {
     body = await c.req.json<ChatCompletionRequest>();

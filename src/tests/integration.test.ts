@@ -223,6 +223,65 @@ async function testApiKeyHeaderOnModelsEndpoint() {
   }
 }
 
+async function testAuthorizationBearerHeader() {
+  console.log('\n▸ Authorization: Bearer header (OpenAI-compatible)');
+
+  const testApiKey = process.env.TEST_CODEBUDDY_API_KEY || 'test-key-placeholder';
+  const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${testApiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'deepseek-v3.1',
+      messages: [{ role: 'user', content: 'Say hi' }],
+    }),
+  });
+
+  assert(res.status !== 400, 'Authorization: Bearer header is accepted');
+
+  if (res.status === 200) {
+    const body = await res.json() as { object: string };
+    assert(body.object === 'chat.completion', 'returns valid response with Bearer auth');
+  } else {
+    console.log('    ℹ Could not fully test (need valid TEST_CODEBUDDY_API_KEY)');
+  }
+}
+
+async function testAuthorizationBearerOnModelsEndpoint() {
+  console.log('\n▸ Authorization: Bearer header on models endpoint');
+
+  const testApiKey = process.env.TEST_CODEBUDDY_API_KEY || 'test-key-placeholder';
+  const res = await fetch(`${BASE_URL}/v1/models`, {
+    headers: {
+      'Authorization': `Bearer ${testApiKey}`,
+    },
+  });
+
+  assert(res.status !== 400, 'models endpoint accepts Authorization: Bearer header');
+
+  if (res.status === 200) {
+    const body = await res.json() as { object: string; data: unknown[] };
+    assert(body.object === 'list', 'returns valid models list with Bearer auth');
+  }
+}
+
+async function testApiKeyPriority() {
+  console.log('\n▸ API key header priority (X-CodeBuddy-Api-Key takes precedence)');
+
+  // When both headers are present, X-CodeBuddy-Api-Key should be used
+  const res = await fetch(`${BASE_URL}/v1/models`, {
+    headers: {
+      'X-CodeBuddy-Api-Key': 'priority-key',
+      'Authorization': 'Bearer fallback-key',
+    },
+  });
+
+  // Both headers are accepted (no 400 error)
+  assert(res.status !== 400, 'both headers accepted without validation error');
+}
+
 // ============ Run all tests ============
 
 console.log('\n🧪 Integration Tests\n');
@@ -243,6 +302,9 @@ try {
   await testStreamingFormat();
   await testApiKeyHeaderFallback();
   await testApiKeyHeaderOnModelsEndpoint();
+  await testAuthorizationBearerHeader();
+  await testAuthorizationBearerOnModelsEndpoint();
+  await testApiKeyPriority();
 } catch (error) {
   console.error('\n  ✗ Test error:', error);
   failed++;

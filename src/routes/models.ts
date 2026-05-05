@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { getModels } from '../services/sdk-bridge.js';
 import { formatModelObject, formatError } from '../services/response-formatter.js';
+import { extractApiKey } from '../utils/auth.js';
 
 export const modelsRoutes = new Hono();
 
 // GET /v1/models — List available models
 modelsRoutes.get('/v1/models', async (c) => {
   try {
-    const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
+    const requestApiKey = extractApiKey(c);
     const modelList = await getModels(requestApiKey);
     return c.json(modelList);
   } catch (error) {
@@ -20,7 +21,7 @@ modelsRoutes.get('/v1/models', async (c) => {
 modelsRoutes.get('/v1/models/:model', async (c) => {
   const modelId = c.req.param('model');
   try {
-    const requestApiKey = c.req.header('X-CodeBuddy-Api-Key');
+    const requestApiKey = extractApiKey(c);
     const modelList = await getModels(requestApiKey);
     const found = modelList.data.find(m => m.id === modelId);
     if (!found) {
