@@ -175,7 +175,7 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 							!sentRole,
 						)
 						sentRole = true
-						fmt.Fprintf(w, services.FormatSSE(chunk))
+						fmt.Fprint(w, services.FormatSSE(chunk))
 						w.Flush()
 					}
 				case "message_start":
@@ -188,8 +188,8 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 
 		// Send stop chunk
 		stopChunk := services.FormatSSEChunk("", actualModel, "stop", false)
-		fmt.Fprintf(w, services.FormatSSE(stopChunk))
-		fmt.Fprintf(w, services.FormatSSEDone())
+		fmt.Fprint(w, services.FormatSSE(stopChunk))
+		fmt.Fprint(w, services.FormatSSEDone())
 		w.Flush()
 
 		cli.Close()
