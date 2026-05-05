@@ -63,9 +63,14 @@ func ChatHandler(cfg *config.Config) fiber.Handler {
 func handleNonStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletionRequest,
 	model, systemPrompt, apiKey string, converted services.ConvertedPrompt) error {
 
+	fallbackModel := cfg.FallbackModel
+	if fallbackModel == model {
+		fallbackModel = "" // Don't set fallback when same as main model
+	}
+
 	opts := services.CLIOptions{
 		Model:          model,
-		FallbackModel:  cfg.FallbackModel,
+		FallbackModel:  fallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
 		SystemPrompt:   systemPrompt,
@@ -129,9 +134,14 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 
+	fallbackModel := cfg.FallbackModel
+	if fallbackModel == model {
+		fallbackModel = "" // Don't set fallback when same as main model
+	}
+
 	opts := services.CLIOptions{
 		Model:          model,
-		FallbackModel:  cfg.FallbackModel,
+		FallbackModel:  fallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
 		SystemPrompt:   systemPrompt,
