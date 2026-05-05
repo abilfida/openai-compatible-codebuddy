@@ -1,63 +1,63 @@
 # openai-compatible-codebuddy
 
-基于 [CodeBuddy Agent SDK](https://www.codebuddy.ai) (`@tencent-ai/agent-sdk`) 构建的 OpenAI 兼容 API 服务器。
+Server API yang kompatibel dengan OpenAI, dibangun menggunakan [CodeBuddy Agent SDK](https://www.codebuddy.ai) (`@tencent-ai/agent-sdk`).
 
-任何使用 OpenAI SDK/API 的客户端只需更改 `base_url` 即可接入 CodeBuddy 提供的大模型服务。
+Setiap client yang menggunakan OpenAI SDK/API hanya perlu mengubah `base_url` untuk mengakses layanan model besar dari CodeBuddy.
 
-## 快速开始
+## Memulai Cepat
 
-### 1. 安装依赖
+### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. 配置环境变量
+### 2. Konfigurasi Environment Variables
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入你的 CODEBUDDY_API_KEY
+# Edit .env, masukkan CODEBUDDY_API_KEY Anda
 ```
 
-### 3. 启动服务
+### 3. Jalankan Service
 
 ```bash
 npm run dev
 ```
 
-服务默认监听 `http://0.0.0.0:3000`。
+Service default listen on `http://0.0.0.0:3000`.
 
-## API 端点
+## API Endpoint
 
 ### `POST /v1/chat/completions`
 
-OpenAI 兼容的聊天补全接口，支持流式和非流式。
+Endpoint chat completion yang kompatibel dengan OpenAI, mendukung streaming dan non-streaming.
 
 ```bash
-# 非流式
+# Non-streaming
 curl http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "deepseek-v3.1",
     "messages": [
-      {"role": "system", "content": "你是一个有用的助手"},
-      {"role": "user", "content": "你好"}
+      {"role": "system", "content": "You are a helpful assistant"},
+      {"role": "user", "content": "Hello"}
     ]
   }'
 
-# 流式
+# Streaming
 curl http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "deepseek-v3.1",
-    "messages": [{"role": "user", "content": "你好"}],
+    "messages": [{"role": "user", "content": "Hello"}],
     "stream": true
   }'
 ```
 
 ### `GET /v1/models`
 
-返回可用模型列表。
+Mengembalikan daftar model yang tersedia.
 
 ```bash
 curl http://localhost:3000/v1/models
@@ -65,7 +65,7 @@ curl http://localhost:3000/v1/models
 
 ### `GET /v1/models/:model`
 
-获取单个模型信息。
+Mengambil informasi model tunggal.
 
 ```bash
 curl http://localhost:3000/v1/models/deepseek-v3.1
@@ -73,13 +73,13 @@ curl http://localhost:3000/v1/models/deepseek-v3.1
 
 ### `GET /health`
 
-健康检查。
+Health check.
 
 ```bash
 curl http://localhost:3000/health
 ```
 
-## 使用 OpenAI SDK 接入
+## Menggunakan OpenAI SDK
 
 ### Python
 
@@ -88,7 +88,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:3000/v1",
-    api_key="not-needed"  # 认证由服务端的 CODEBUDDY_API_KEY 处理
+    api_key="not-needed"  # Authentication ditangani oleh CODEBUDDY_API_KEY di server
 )
 
 response = client.chat.completions.create(
@@ -115,50 +115,50 @@ const response = await client.chat.completions.create({
 console.log(response.choices[0].message.content);
 ```
 
-## 缓存机制
+## Mekanisme Cache
 
-### 双层缓存
+### Double-Layer Cache
 
-1. **SDK 缓存统计透传**：SDK 返回的 `cache_read_input_tokens` 映射到 `usage.prompt_tokens_details.cached_tokens`
-2. **Server 端请求级缓存**：相同请求（model + messages 组合）的非流式结果会被缓存
+1. **SDK Cache Statistics Passthrough**: `cache_read_input_tokens` dari SDK di-map ke `usage.prompt_tokens_details.cached_tokens`
+2. **Server-Side Request-Level Cache**: Hasil non-streaming untuk request yang sama (kombinasi model + messages) akan di-cache
 
-### 缓存配置
+### Konfigurasi Cache
 
-| 环境变量 | 默认值 | 说明 |
+| Environment Variable | Default | Deskripsi |
 |---------|--------|------|
-| `CACHE_ENABLED` | `true` | 是否启用缓存 |
-| `CACHE_TTL_MS` | `300000` | 缓存过期时间（毫秒） |
-| `CACHE_MAX_SIZE` | `100` | 最大缓存条目数 |
+| `CACHE_ENABLED` | `true` | Enable/disable cache |
+| `CACHE_TTL_MS` | `300000` | Cache TTL (milliseconds) |
+| `CACHE_MAX_SIZE` | `100` | Maximum cache entries |
 
-### 缓存响应头
+### Cache Response Headers
 
-- `X-Cache: HIT` / `X-Cache: MISS` — 缓存命中/未命中
-- `X-Cache-Stats` — 缓存统计信息（命中率等）
+- `X-Cache: HIT` / `X-Cache: MISS` — Cache hit/miss
+- `X-Cache-Stats` — Cache statistics (hit rate, etc.)
 
-## 环境变量
+## Environment Variables
 
-| 变量 | 必填 | 默认值 | 说明 |
+| Variable | Required | Default | Deskripsi |
 |------|------|--------|------|
-| `CODEBUDDY_API_KEY` | 是 | - | CodeBuddy API Key |
-| `CODEBUDDY_INTERNET_ENVIRONMENT` | 否 | - | `internal`(中国版) / `ioa`(iOA版) |
-| `PORT` | 否 | `3000` | 服务端口 |
-| `HOST` | 否 | `0.0.0.0` | 监听地址 |
-| `DEFAULT_MODEL` | 否 | `deepseek-v3.1` | 默认模型 |
-| `FALLBACK_MODEL` | 否 | `deepseek-v3.1` | 备用模型 |
+| `CODEBUDDY_API_KEY` | Yes | - | CodeBuddy API Key |
+| `CODEBUDDY_INTERNET_ENVIRONMENT` | No | - | `internal` (China version) / `ioa` (iOA version) |
+| `PORT` | No | `3000` | Service port |
+| `HOST` | No | `0.0.0.0` | Listen address |
+| `DEFAULT_MODEL` | No | `deepseek-v3.1` | Default model |
+| `FALLBACK_MODEL` | No | `deepseek-v3.1` | Fallback model |
 
-## 测试
+## Testing
 
 ```bash
-# LRU 缓存单元测试
+# LRU cache unit tests
 npm test
 
-# 集成测试（需先启动服务）
+# Integration tests (requires running service)
 npm run test:integration
 ```
 
-## 技术栈
+## Tech Stack
 
-- **Hono** — 轻量高性能 Web 框架
+- **Hono** — Lightweight high-performance web framework
 - **@tencent-ai/agent-sdk** — CodeBuddy Agent SDK
-- **TypeScript** — 类型安全
+- **TypeScript** — Type safety
 - **Node.js >= 18.20**

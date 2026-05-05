@@ -40,3 +40,5 @@ tmp/
 # Go binaries
 go/server
 go/codebuddy-server
+
+docs/
