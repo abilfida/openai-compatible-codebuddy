@@ -88,10 +88,3 @@ func fetchModels(cfg *config.Config, apiKey string) (*types.ModelListResponse, e
 	return services.FormatModelList(models), nil
 }
 
-func getAPIKey(c *fiber.Ctx, cfg *config.Config) string {
-	key := c.Get("X-CodeBuddy-Api-Key")
-	if key != "" {
-		return key
-	}
-	return cfg.CodeBuddy.APIKey
-}
