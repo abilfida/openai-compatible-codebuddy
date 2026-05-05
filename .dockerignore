@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Build output (will be built in container)
+dist
+
+# Development files
+.git
+.github
+.gitignore
+.worktrees
+
+# Documentation
+docs
+README.md
+*.md
+
+# Environment files (runtime config via env vars)
+.env
+.env.*
+!.env.example
+
+# Test files
+src/tests
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
