@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
-	"time"
 
 	"github.com/abilfida/openai-compatible-codebuddy/internal/types"
 )
@@ -43,16 +42,18 @@ type CLIOptions struct {
 
 // CLIProcess manages the CLI subprocess
 type CLIProcess struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.Reader
-	scanner *bufio.Scanner
-	msgChan chan types.CLIMessage
-	errChan chan error
-	mu      sync.Mutex
-	closed  bool
-	ctx     context.Context
-	cancel  context.CancelFunc
+	cmd        *exec.Cmd
+	stdin      io.WriteCloser
+	stdout     io.Reader
+	scanner    *bufio.Scanner
+	msgChan    chan types.CLIMessage
+	errChan    chan error
+	done       chan struct{}      // Signal goroutine to stop
+	wg         sync.WaitGroup      // Track goroutine completion
+	mu         sync.Mutex
+	closed     bool
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // CLINotFoundError is thrown when CLI cannot be found
@@ -100,14 +101,6 @@ func NewCLIProcess(opts CLIOptions) (*CLIProcess, error) {
 		return nil, fmt.Errorf("stdout pipe error: %w", err)
 	}
 
-	// stderr handling (optional)
-	if opts.Env != nil {
-		if stderrHandler, ok := opts.Env["__stderr_handler__"]; ok {
-			// Custom stderr handling if needed
-			_ = stderrHandler // placeholder
-		}
-	}
-
 	if err := cmd.Start(); err != nil {
 		cancel()
 		return nil, fmt.Errorf("start error: %w", err)
@@ -120,10 +113,13 @@ func NewCLIProcess(opts CLIOptions) (*CLIProcess, error) {
 		scanner: bufio.NewScanner(stdout),
 		msgChan: make(chan types.CLIMessage, 100),
 		errChan: make(chan error, 1),
+		done:    make(chan struct{}),
 		ctx:     ctx,
 		cancel:  cancel,
 	}
 
+	// Start goroutine with WaitGroup tracking
+	p.wg.Add(1)
 	go p.readMessages()
 
 	return p, nil
@@ -140,7 +136,6 @@ func (p *CLIProcess) SendUserMessage(content interface{}) error {
 
 	var msg types.CLIUserMessage
 
-	// Handle string content or pre-built UserMessage
 	switch v := content.(type) {
 	case string:
 		msg = types.CLIUserMessage{
@@ -165,45 +160,6 @@ func (p *CLIProcess) SendUserMessage(content interface{}) error {
 	return err
 }
 
-// SendControlRequest sends a control request and waits for response - matches TypeScript SDK ProcessTransport.sendControlRequest()
-func (p *CLIProcess) SendControlRequest(payload map[string]interface{}, timeoutMs int) (map[string]interface{}, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.closed {
-		return nil, fmt.Errorf("process closed")
-	}
-
-	// Generate request ID
-	requestID := fmt.Sprintf("sdk_%d_%d", time.Now().UnixMilli(), requestIDCounter())
-	requestIDCounterAdd()
-
-	request := map[string]interface{}{
-		"type":       "control_request",
-		"request_id": requestID,
-		"request":    payload,
-	}
-
-	line := string(mustMarshal(request)) + "\n"
-	_, err := p.stdin.Write([]byte(line))
-	if err != nil {
-		return nil, err
-	}
-
-	// Wait for response with timeout
-	timeout := timeoutMs
-	if timeout == 0 {
-		timeout = 60000 // Default 60s
-	}
-
-	// Simplified: just return success for now
-	// Full implementation would track pending requests like TypeScript SDK
-	return map[string]interface{}{
-		"request_id": requestID,
-		"success":    true,
-	}, nil
-}
-
 // Messages returns the message channel - matches TypeScript SDK ProcessTransport.messages()
 func (p *CLIProcess) Messages() <-chan types.CLIMessage {
 	return p.msgChan
@@ -214,7 +170,8 @@ func (p *CLIProcess) Errors() <-chan error {
 	return p.errChan
 }
 
-// Close closes the process - matches TypeScript SDK ProcessTransport.close()
+// Close closes the process - FIXED to match TypeScript SDK ProcessTransport.close()
+// Sequence: signal done → wait for goroutine → close channels → kill process
 func (p *CLIProcess) Close() error {
 	p.mu.Lock()
 	if p.closed {
@@ -224,10 +181,20 @@ func (p *CLIProcess) Close() error {
 	p.closed = true
 	p.mu.Unlock()
 
+	// 1. Signal goroutine to stop (like TypeScript messageStream.done())
+	close(p.done)
+
+	// 2. Kill subprocess to unblock scanner (like TypeScript process.kill())
 	p.cancel()
+
+	// 3. Wait for goroutine to finish (prevents panic on closed channel)
+	p.wg.Wait()
+
+	// 4. Now safe to close channels (goroutine is done)
 	close(p.msgChan)
 	close(p.errChan)
 
+	// 5. Wait for process to fully exit
 	return p.cmd.Wait()
 }
 
@@ -238,7 +205,11 @@ func (p *CLIProcess) IsReady() bool {
 	return !p.closed && p.cmd != nil
 }
 
+// readMessages reads from stdout and sends to channel
+// Uses select with done channel to handle graceful shutdown
 func (p *CLIProcess) readMessages() {
+	defer p.wg.Done()
+
 	for p.scanner.Scan() {
 		line := p.scanner.Text()
 		if line == "" {
@@ -253,16 +224,26 @@ func (p *CLIProcess) readMessages() {
 		// Handle control responses
 		if msg.Type == "control_response" {
 			// Would handle pending request resolution here
-			// For now, just pass through
+			continue
 		}
 
-		p.msgChan <- msg
+		// Send to channel with select to check for done signal
+		// This prevents panic when channel is closed during Close()
+		select {
+		case p.msgChan <- msg:
+			// Message sent successfully
+		case <-p.done:
+			// Process is closing, stop reading
+			return
+		}
 	}
 
+	// Scanner finished (stdout EOF or error)
 	if err := p.scanner.Err(); err != nil {
 		select {
 		case p.errChan <- err:
-		default:
+		case <-p.done:
+			// Closing, don't send error
 		}
 	}
 }
@@ -332,7 +313,6 @@ func buildCLIArgs(opts CLIOptions) []string {
 		}
 		args = append(args, "--setting-sources", value)
 	} else {
-		// SDK default behavior: no filesystem settings loaded
 		args = append(args, "--setting-sources", "none")
 	}
 
@@ -386,17 +366,16 @@ func resolveCLIPath() (string, error) {
 		if fileExists(envPath) {
 			return envPath, nil
 		}
-		// Warn but continue to try other methods (matching TypeScript behavior)
 		fmt.Fprintf(os.Stderr, "Warning: CODEBUDDY_CODE_PATH is set to \"%s\" but file does not exist. Falling back to other resolution methods.\n", envPath)
 	}
 
-	// 2. Try bundled CLI from npm package (node_modules/@tencent-ai/agent-sdk/cli/bin/codebuddy)
+	// 2. Try bundled CLI from npm package
 	bundledPath := resolveFromBundled()
 	if bundledPath != "" {
 		return bundledPath, nil
 	}
 
-	// 3. Try monorepo development path (agent-cli)
+	// 3. Try monorepo development path
 	monorepoPath := resolveFromMonorepo()
 	if monorepoPath != "" {
 		return monorepoPath, nil
@@ -407,7 +386,7 @@ func resolveCLIPath() (string, error) {
 		return path, nil
 	}
 
-	// Nothing found - throw helpful error (matches TypeScript SDK)
+	// Nothing found - throw helpful error
 	return "", &CLINotFoundError{
 		Message: `CodeBuddy CLI not found.
 
@@ -423,38 +402,26 @@ Possible solutions:
 	}
 }
 
-// binaryName returns platform-specific binary name - matches TypeScript SDK BINARY_NAMES
+// binaryName returns platform-specific binary name
 func binaryName() string {
 	switch runtime.GOOS {
 	case "windows":
 		return "codebuddy.exe"
-	case "darwin", "linux":
-		return "codebuddy"
 	default:
 		return "codebuddy"
 	}
 }
 
 // resolveFromBundled tries to find CLI from bundled npm package
-// Matches TypeScript: ../../cli/bin/codebuddy relative to lib/utils
 func resolveFromBundled() string {
-	// Go module is at go/internal/services
-	// Need to traverse up to find node_modules
-	// Path: go/../node_modules/@tencent-ai/agent-sdk/cli/bin/codebuddy
-
-	// Get current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
 
-	// Try multiple relative paths
 	paths := []string{
-		// From go directory: ../node_modules/...
 		filepath.Join(cwd, "../node_modules/@tencent-ai/agent-sdk/cli/bin", binaryName()),
-		// From project root
 		filepath.Join(cwd, "node_modules/@tencent-ai/agent-sdk/cli/bin", binaryName()),
-		// Common locations
 		filepath.Join(cwd, "../../node_modules/@tencent-ai/agent-sdk/cli/bin", binaryName()),
 	}
 
@@ -464,11 +431,9 @@ func resolveFromBundled() string {
 		}
 	}
 
-	// Try absolute path based on executable location
 	execPath, err := os.Executable()
 	if err == nil {
 		execDir := filepath.Dir(execPath)
-		// From go/codebuddy-server binary
 		p := filepath.Join(execDir, "../node_modules/@tencent-ai/agent-sdk/cli/bin", binaryName())
 		if fileExists(p) {
 			return p
@@ -478,14 +443,13 @@ func resolveFromBundled() string {
 	return ""
 }
 
-// resolveFromMonorepo tries monorepo development path - matches TypeScript SDK
+// resolveFromMonorepo tries monorepo development path
 func resolveFromMonorepo() string {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
 
-	// Try agent-cli directory (monorepo structure)
 	paths := []string{
 		filepath.Join(cwd, "../agent-cli/bin", binaryName()),
 		filepath.Join(cwd, "../agent-cli/dist", binaryName()),
@@ -500,14 +464,12 @@ func resolveFromMonorepo() string {
 	return ""
 }
 
-// buildEnv builds environment variables - matches TypeScript SDK
+// buildEnv builds environment variables
 func buildEnv(extra map[string]string) []string {
 	env := []string{"CODEBUDDY_CODE_ENTRYPOINT=sdk-go"}
 
-	// Add CODEBUDDY_API_KEY if provided
 	if extra != nil {
 		for k, v := range extra {
-			// Skip internal keys
 			if k == "__stderr_handler__" {
 				continue
 			}
@@ -541,20 +503,4 @@ func joinStrings(items []string, sep string) string {
 func mustMarshal(v interface{}) json.RawMessage {
 	data, _ := json.Marshal(v)
 	return json.RawMessage(data)
-}
-
-// Request ID counter for control requests
-var requestIDCounterVal int64
-var requestIDMu sync.Mutex
-
-func requestIDCounter() int64 {
-	requestIDMu.Lock()
-	defer requestIDMu.Unlock()
-	return requestIDCounterVal
-}
-
-func requestIDCounterAdd() {
-	requestIDMu.Lock()
-	requestIDCounterVal++
-	requestIDMu.Unlock()
 }
