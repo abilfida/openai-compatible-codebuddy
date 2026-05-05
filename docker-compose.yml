@@ -1,0 +1,24 @@
+services:
+  codebuddy:
+    image: ghcr.io/abilfida/openai-compatible-codebuddy:latest
+    container_name: openai-compatible-codebuddy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - CODEBUDDY_API_KEY=${CODEBUDDY_API_KEY}
+      - CODEBUDDY_INTERNET_ENVIRONMENT=${CODEBUDDY_INTERNET_ENVIRONMENT:-}
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-deepseek-v3.1}
+      - FALLBACK_MODEL=${FALLBACK_MODEL:-deepseek-v3.1}
+      - CACHE_ENABLED=${CACHE_ENABLED:-true}
+      - CACHE_TTL_MS=${CACHE_TTL_MS:-300000}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-100}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

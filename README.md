@@ -27,6 +27,65 @@ npm run dev
 
 Service default listen on `http://0.0.0.0:3000`.
 
+## Deploy dengan Docker
+
+### Menggunakan docker-compose (Recommended)
+
+1. **Buat file `.env`**
+
+   ```bash
+   cp .env.example .env
+   # Edit .env, masukkan CODEBUDDY_API_KEY Anda
+   ```
+
+2. **Jalankan container**
+
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Cek status container**
+
+   ```bash
+   docker compose ps
+   ```
+
+   Status `(healthy)` menandakan service berjalan normal.
+
+4. **Stop container**
+
+   ```bash
+   docker compose down
+   ```
+
+### Menggunakan Docker langsung
+
+```bash
+# Build image lokal
+docker build -t openai-compatible-codebuddy .
+
+# Run container
+docker run -d \
+  --name codebuddy \
+  -p 3000:3000 \
+  -e CODEBUDDY_API_KEY=your-api-key \
+  ghcr.io/abilfida/openai-compatible-codebuddy:latest
+
+# Cek logs
+docker logs -f codebuddy
+
+# Stop container
+docker stop codebuddy && docker rm codebuddy
+```
+
+### Pull dari GHCR (Pre-built image)
+
+```bash
+docker pull ghcr.io/abilfida/openai-compatible-codebuddy:latest
+```
+
+Image tersedia di GitHub Container Registry, di-build otomatis setiap release tag (`v*`).
+
 ## API Endpoint
 
 ### `POST /v1/chat/completions`
