@@ -37,8 +37,4 @@ tmp/
 # Worktrees
 .worktrees/
 
-# Go binaries
-go/server
-go/codebuddy-server
-
 docs/
