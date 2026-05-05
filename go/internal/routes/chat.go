@@ -68,9 +68,9 @@ func handleNonStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatComplet
 		FallbackModel:  cfg.FallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
-		AllowedTools:   []string{},
-		SystemPrompt:   systemPrompt,
-		Env:            map[string]string{"CODEBUDDY_API_KEY": apiKey},
+		// AllowedTools: nil (empty) - TypeScript SDK only adds --allowedTools if non-empty
+		SystemPrompt: systemPrompt,
+		Env:          map[string]string{"CODEBUDDY_API_KEY": apiKey},
 	}
 
 	cli, err := services.NewCLIProcess(opts)
@@ -84,7 +84,7 @@ func handleNonStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatComplet
 	}
 	defer cli.Close()
 
-	if err := cli.SendUserMessage(converted.Prompt, nil); err != nil {
+	if err := cli.SendUserMessage(converted.Prompt); err != nil {
 		return c.Status(500).JSON(types.ErrorResponse{
 			Error: types.ErrorDetail{
 				Message: err.Error(),
@@ -133,7 +133,7 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 		FallbackModel:  cfg.FallbackModel,
 		MaxTurns:       1,
 		PermissionMode: "bypassPermissions",
-		AllowedTools:   []string{},
+		// AllowedTools: nil (empty) - TypeScript SDK only adds --allowedTools if non-empty
 		SystemPrompt:   systemPrompt,
 		IncludePartial: true,
 		Env:            map[string]string{"CODEBUDDY_API_KEY": apiKey},
@@ -149,7 +149,7 @@ func handleStreamChat(c *fiber.Ctx, cfg *config.Config, req types.ChatCompletion
 		})
 	}
 
-	if err := cli.SendUserMessage(converted.Prompt, nil); err != nil {
+	if err := cli.SendUserMessage(converted.Prompt); err != nil {
 		cli.Close()
 		return c.Status(500).JSON(types.ErrorResponse{
 			Error: types.ErrorDetail{
