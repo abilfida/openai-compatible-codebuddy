@@ -13,11 +13,16 @@ import {
 } from './response-formatter.js';
 import type { ChatMessage, ChatCompletionResponse, ModelListResponse } from '../types/index.js';
 
-function buildEnv(requestApiKey?: string): Record<string, string | undefined> {
+export function buildEnv(requestApiKey?: string): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
   env.CODEBUDDY_API_KEY = requestApiKey ?? config.codebuddy.apiKey;
   if (config.codebuddy.environment) {
     env.CODEBUDDY_INTERNET_ENVIRONMENT = config.codebuddy.environment;
+  }
+  if (config.proxy?.url) {
+    env.HTTP_PROXY = config.proxy.url;
+    env.HTTPS_PROXY = config.proxy.url;
+    env.NO_PROXY = 'localhost,127.0.0.1';
   }
   return env;
 }
