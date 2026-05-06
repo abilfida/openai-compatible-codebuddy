@@ -17,6 +17,9 @@ export interface AppConfig {
     apiKey?: string;
     environment?: string;
   };
+  proxy?: {
+    url?: string;
+  };
 }
 
 function getEnv(key: string, fallback?: string): string | undefined {
@@ -58,5 +61,8 @@ export const config: AppConfig = {
   codebuddy: {
     apiKey: getEnv('CODEBUDDY_API_KEY'),
     environment: getEnv('CODEBUDDY_INTERNET_ENVIRONMENT'),
+  },
+  proxy: {
+    url: getEnv('HTTP_PROXY_URL'),
   },
 };
